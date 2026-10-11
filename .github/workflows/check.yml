@@ -1,0 +1,41 @@
+name: Check
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    env:
+      COSTKEY_JWT_SECRET: ci-jwt-secret
+      COSTKEY_NOTIFICATION_ENCRYPTION_KEY: ci-notification-key
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the published image
+        run: docker compose up -d
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 60); do curl -fsS http://localhost:4100/health && break; sleep 2; done
+          curl -fsS http://localhost:4100/login | grep -q 'id="root"'
+          curl -fsS -X POST http://localhost:4100/auth/signup -H 'content-type: application/json' \
+            -d '{"email":"ci@example.com","password":"ci-password-1","name":"CI","orgName":"CI"}' \
+            | grep -q '"dsn":"http://ck_[a-z0-9]*@localhost:4100/'
+      - name: Logs
+        if: always()
+        run: docker compose logs costkey --tail 100
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint kubernetes/chart
+      - run: helm template costkey kubernetes/chart > /dev/null
+      - name: Shell scripts parse
+        run: |
+          sh -n install.sh
+          bash -n cloud-run/deploy.sh

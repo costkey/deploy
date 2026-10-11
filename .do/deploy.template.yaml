@@ -1,0 +1,32 @@
+# DigitalOcean App Platform: CostKey from the published image, with a
+# managed Postgres. Fill in the two secrets when prompted (openssl rand -hex 32).
+spec:
+  name: costkey
+  services:
+    - name: costkey
+      image:
+        registry_type: GHCR
+        registry: costkey
+        repository: costkey
+        tag: latest
+      http_port: 4100
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-1gb
+      health_check:
+        http_path: /health
+      envs:
+        - key: NODE_ENV
+          value: production
+        - key: PUBLIC_URL
+          value: ${APP_URL}
+        # App Platform's database uses its own certificate inside DigitalOcean's network.
+        - key: DATABASE_URL
+          value: postgresql://${db.USERNAME}:${db.PASSWORD}@${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=no-verify
+        - key: COSTKEY_JWT_SECRET
+          type: SECRET
+        - key: COSTKEY_NOTIFICATION_ENCRYPTION_KEY
+          type: SECRET
+  databases:
+    - name: db
+      engine: PG
+      version: "16"
